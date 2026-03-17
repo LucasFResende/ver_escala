@@ -113,12 +113,12 @@ function getNomePorHorario(escala) {
     const nomePorHorario = { "17H": [], "7H": [], "9H": [], "11H": [], "17H_1": [], "19H": [] };
 
     for (let i = 0; i < escala.length; i++) {
-        nomePorHorario["17H"].push(separarNomes(escala[i]["17H"]));
-        nomePorHorario["7H"].push(separarNomes(escala[i]["7H"]));
-        nomePorHorario["9H"].push(separarNomes(escala[i]["9H"]));
-        nomePorHorario["11H"].push(separarNomes(escala[i]["11H"]));
-        nomePorHorario["17H_1"].push(separarNomes(escala[i]["17H_1"]));
-        nomePorHorario["19H"].push(separarNomes(escala[i]["19H"]));
+        nomePorHorario["17H"].push(...separarNomes(escala[i]["17H"]));
+        nomePorHorario["7H"].push(...separarNomes(escala[i]["7H"]));
+        nomePorHorario["9H"].push(...separarNomes(escala[i]["9H"]));
+        nomePorHorario["11H"].push(...separarNomes(escala[i]["11H"]));
+        nomePorHorario["17H_1"].push(...separarNomes(escala[i]["17H_1"]));
+        nomePorHorario["19H"].push(...separarNomes(escala[i]["19H"]));
     }
     console.log(nomePorHorario);
     return nomePorHorario;
@@ -126,8 +126,77 @@ function getNomePorHorario(escala) {
 
 }
 
-function adicionarLinhaNaTabelaComCor(linha, cab) {
+function verificarRespostas(nomes) {
+    var status = ["CERTO", "ERRADO", "ATENCAO"]
 
+    var retorno = {};
+
+    for (let i = 0; i < nomes.length; i++) {
+        retorno[nomes[i]] = status[Math.floor(Math.random() * status.length)];
+    }
+    return retorno;
+}
+
+function adicionarCor(coluna, ver) {
+    var cores = {
+        "CERTO": "green",
+        "ERRADO": "red",
+        "ATENCAO": "gold"
+    }
+    for (let nome in ver) {
+        var span = document.createElement("span");
+        span.style.color = cores[ver[nome]];
+        span.textContent = nome + " ";
+        coluna.appendChild(span);
+    }
+    const spans = coluna.querySelectorAll("span");
+    spans.forEach((span, index) => {
+        if (index < spans.length - 1) {
+            span.insertAdjacentText("afterend", " - ");
+        }
+    });
+}
+
+function adicionarLinhaNaTabelaComCor(linha) {
+    var diaSab = linha["SÁBADO"];
+    var diaDom = linha["DOMINGO"];
+
+    var missaSab17 = separarNomes(linha["17H"]);
+    var missaSab17ver = verificarRespostas(missaSab17);
+    var missaDom7 = separarNomes(linha["7H"]);
+    var missaDom7ver = verificarRespostas(missaDom7);
+    var missaDom9 = separarNomes(linha["9H"]);
+    var missaDom9ver = verificarRespostas(missaDom9);
+    var missaDom11 = separarNomes(linha["11H"]);
+    var missaDom11ver = verificarRespostas(missaDom11);
+    var missaDom17 = separarNomes(linha["17H_1"]);
+    var missaDom17ver = verificarRespostas(missaDom17);
+    var missaDom19 = separarNomes(linha["19H"]);
+    var missaDom19ver = verificarRespostas(missaDom19);
+
+    var linhaTabela = document.createElement("tr");
+    for (let i = 0; i < 8; i++) {
+        var col = document.createElement("td");
+        if (i == 0) {
+            col.textContent = diaSab;
+        } else if (i == 1) {
+            adicionarCor(col, missaSab17ver)
+        } else if (i == 2) {
+            col.textContent = diaDom;
+        } else if (i == 3) {
+            adicionarCor(col, missaDom7ver)
+        } else if (i == 4) {
+            adicionarCor(col, missaDom9ver)
+        } else if (i == 5) {
+            adicionarCor(col, missaDom11ver)
+        } else if (i == 6) {
+            adicionarCor(col, missaDom17ver)
+        } else if (i == 7) {
+            adicionarCor(col, missaDom19ver)
+        }
+        linhaTabela.appendChild(col);
+    }
+    return linhaTabela;
 }
 
 function exibirEscala(escala, nomePorDia) {
@@ -146,12 +215,7 @@ function exibirEscala(escala, nomePorDia) {
     localExibirEscala.appendChild(escalaCabecalho);
     cabecalho[6] = "17H_1";
     for (let i = 0; i < escala.length; i++) {
-        var linha = document.createElement("tr");
-        for (let x in cabecalho) {
-            var col = document.createElement("td");
-            col.textContent = escala[i][cabecalho[x]] === undefined ? "" : escala[i][cabecalho[x]];
-            linha.appendChild(col);
-        }
+        var linha = adicionarLinhaNaTabelaComCor(escala[i]);
         escalaCorpo.appendChild(linha);
 
     }
