@@ -1,3 +1,17 @@
 body {
     background-color: black;
 }
+
+#ESCALA {
+    color: white;
+    background-color: black;
+}
+
+#ver_escala {
+    margin: 10px 0 10px 0;
+}
+
+#exibirEscala {
+    color: white;
+    background-color: black;
+}
