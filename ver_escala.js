@@ -36,7 +36,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const nomePorDia = getNomePorDia(escala);
         const nomePorHorario = getNomePorHorario(escala);
-        exibirEscala(escala, respostas, conversao);
+        var nomes = [];
+        for (let x in nomePorHorario) {
+            nomes.push(...nomePorHorario[x]);
+        }
+        exibirEscala(escala, respostas, nomes);
     });
 
 });
@@ -71,11 +75,10 @@ function lerArquivo(file, nome) {
                         const { ["Nome do acólito ( nome e sobrenome ) "]: nomeAcolito,
                             ["Dias"]: dias,
                             ...resto } = json[x];
-                        json[x] = { nome: nomeAcolito, restricao: dias, horario: Object.values(resto)[0] };
+                        json[x] = { nome: nomeAcolito.trim(), restricao: dias, horario: Object.values(resto)[0] };
                     }
                 } else if (nome === "CONVERSAO") {
                     json = XLSX.utils.sheet_to_json(sheet, { raw: false });
-                    console.log(json);
                 }
 
                 resolve(json);
@@ -121,7 +124,6 @@ function ajeitarRespostas(respostas, conversao) {
             }
         }
     }
-    console.log(respostas);
     return respostas;
 }
 
@@ -170,9 +172,21 @@ function getNomePorHorario(escala) {
 
 }
 
-function verificarRespostas(nomes, dia, hor, respostas) {
-    var status = ["CERTO", "ERRADO", "ATENCAO"]
+function verificarNaoEscalado(respostas, nomes) {
+    var observacao = {}
+    for (let i = 0; i < respostas.length; i++) {
+        if (!nomes.includes(respostas[i].nome)) {
+            observacao[respostas[i].nome] = {
+                cor: "red",
+                observacao: "Não escalado"
+            };
+        }
+    }
+    return observacao
+}
 
+function verificarRespostas(nomes, dia, hor, respostas, observacao) {
+    var status = ["CERTO", "ERRADO", "ATENCAO"]
     var retorno = {};
 
     for (let i = 0; i < nomes.length; i++) {
@@ -182,19 +196,41 @@ function verificarRespostas(nomes, dia, hor, respostas) {
                 achou = true;
                 if (respostas[j].restricao.includes(dia)) {
                     retorno[nomes[i]] = status[1];
+                    observacao[nomes[i]] = {
+                        cor: "red",
+                        observacao: "Restrição no dia " + dia
+                    }
                 } else if (!respostas[j].horario.includes(hor)) {
                     retorno[nomes[i]] = status[1];
+                    observacao[nomes[i]] = {
+                        cor: "red",
+                        observacao: "Restrição no horário " + hor
+                    }
                 } else {
                     retorno[nomes[i]] = status[0];
+                    if (nomes[i] in observacao) delete observacao[nomes[i]];
                 }
             }
         }
         if (!achou) {
             retorno[nomes[i]] = status[2];
+            observacao[nomes[i]] = {
+                cor: "gold",
+                observacao: "Não respondeu ao formulário"
+            }
         }
     }
-    // console.log(retorno);
+
     return retorno;
+}
+
+function formatarClasse(nome) {
+    return nome
+        .normalize("NFD")                // remove acento
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "_")            // espaço → _
+        .replace(/[^\w-]/g, "")          // remove resto
+        .toLowerCase();
 }
 
 function adicionarCor(coluna, ver) {
@@ -205,6 +241,7 @@ function adicionarCor(coluna, ver) {
     }
     for (let nome in ver) {
         var span = document.createElement("span");
+        span.classList.add(formatarClasse(nome));
         span.style.color = cores[ver[nome]];
         span.textContent = nome + " ";
         coluna.appendChild(span);
@@ -217,45 +254,56 @@ function adicionarCor(coluna, ver) {
     });
 }
 
-function adicionarLinhaNaTabelaComCor(linha, respostas) {
+function adicionarLinhaNaTabelaComCor(linha, respostas, index, observacao) {
     var diaSab = linha["SÁBADO"];
     var diaDom = linha["DOMINGO"];
 
     var missaSab17 = separarNomes(linha["17H"]);
-    var missaSab17ver = verificarRespostas(missaSab17, diaSab, "17H", respostas);
+    var missaSab17ver = verificarRespostas(missaSab17, diaSab, "17H", respostas, observacao);
     var missaDom7 = separarNomes(linha["7H"]);
-    var missaDom7ver = verificarRespostas(missaDom7, diaDom, "7H", respostas);
+    var missaDom7ver = verificarRespostas(missaDom7, diaDom, "7H", respostas, observacao);
     var missaDom9 = separarNomes(linha["9H"]);
-    var missaDom9ver = verificarRespostas(missaDom9, diaDom, "9H", respostas);
+    var missaDom9ver = verificarRespostas(missaDom9, diaDom, "9H", respostas, observacao);
     var missaDom11 = separarNomes(linha["11H"]);
-    var missaDom11ver = verificarRespostas(missaDom11, diaDom, "11H", respostas);
+    var missaDom11ver = verificarRespostas(missaDom11, diaDom, "11H", respostas, observacao);
     var missaDom17 = separarNomes(linha["17H_1"]);
-    var missaDom17ver = verificarRespostas(missaDom17, diaDom, "17H_1", respostas);
+    var missaDom17ver = verificarRespostas(missaDom17, diaDom, "17H_1", respostas, observacao);
     var missaDom19 = separarNomes(linha["19H"]);
-    var missaDom19ver = verificarRespostas(missaDom19, diaDom, "19H", respostas);
+    var missaDom19ver = verificarRespostas(missaDom19, diaDom, "19H", respostas, observacao);
 
     var linhaTabela = document.createElement("tr");
+    linhaTabela.id = "semana" + index;
+
     for (let i = 0; i < 8; i++) {
         var col = document.createElement("td");
+
         if (i == 0) {
             col.textContent = diaSab;
         } else if (i == 1) {
-            adicionarCor(col, missaSab17ver)
+            col.classList.add("17H");
+            adicionarCor(col, missaSab17ver);
         } else if (i == 2) {
             col.textContent = diaDom;
         } else if (i == 3) {
-            adicionarCor(col, missaDom7ver)
+            col.classList.add("7H");
+            adicionarCor(col, missaDom7ver);
         } else if (i == 4) {
-            adicionarCor(col, missaDom9ver)
+            col.classList.add("9H");
+            adicionarCor(col, missaDom9ver);
         } else if (i == 5) {
-            adicionarCor(col, missaDom11ver)
+            col.classList.add("11H");
+            adicionarCor(col, missaDom11ver);
         } else if (i == 6) {
-            adicionarCor(col, missaDom17ver)
+            col.classList.add("17H_1");
+            adicionarCor(col, missaDom17ver);
         } else if (i == 7) {
-            adicionarCor(col, missaDom19ver)
+            col.classList.add("19H");
+            adicionarCor(col, missaDom19ver);
         }
+
         linhaTabela.appendChild(col);
     }
+
     return linhaTabela;
 }
 
@@ -266,6 +314,8 @@ function exibirEscala(escala, respostas) {
     const cab = document.createElement("tr");
     const escalaCorpo = document.createElement("tbody");
     let cabecalho = ["SÁBADO", "17H", "DOMINGO", "7H", "9H", "11H", "17H", "19H"];
+    var observacao = {};
+
     for (let c in cabecalho) {
         var col = document.createElement("th");
         col.textContent = cabecalho[c];
@@ -275,22 +325,96 @@ function exibirEscala(escala, respostas) {
     localExibirEscala.appendChild(escalaCabecalho);
     cabecalho[6] = "17H_1";
     for (let i = 0; i < escala.length; i++) {
-        var linha = adicionarLinhaNaTabelaComCor(escala[i], respostas);
+        var linha = adicionarLinhaNaTabelaComCor(escala[i], respostas, i, observacao);
         escalaCorpo.appendChild(linha);
-
     }
     localExibirEscala.appendChild(escalaCorpo);
+    for (let i = 0; i < escala.length; i++) {
+        verificarQuantidadeDeVezesEscaladoPorSemana(observacao, i);
+    }
+    verificarQuantidadeDeVezesEscaladoGeral(observacao, respostas);
+    exibirObservacoes(observacao);
 }
 
-function avaliarEscala(escala, respostas) {
-    var nomePorDia;
-    var nomePorHorario;
-    nomePorDia = getNomePorDia(escala);
-    nomePorHorario = getNomePorHorario(escala);
-    var avaliacao = {}
-    console.log(escala);
-    console.log(nomePorDia);
-    console.log(nomePorHorario);
+function verificarQuantidadeDeVezesEscaladoGeral(observacao, respostas) {
+    for (let i = 0; i < respostas.length; i++) {
+        var classe = `.${formatarClasse(respostas[i].nome)}`;
+        if (Object.keys(observacao).includes(respostas[i].nome)) {
+            continue;
+        }
+        if (document.querySelectorAll(classe).length > 2) {
+            observacao[respostas[i].nome] = {
+                cor: "gold",
+                observacao: "Escalado mais de duas vezes"
+            }
+            const elementos = document.querySelectorAll(classe);
+
+            elementos.forEach(el => {
+                el.style.color = "gold";
+            });
+        } else if (document.querySelectorAll(classe).length < 1) {
+            observacao[respostas[i].nome] = {
+                cor: "red",
+                observacao: "Não escalado"
+            }
+        }
+    }
+}
+
+function verificarQuantidadeDeVezesEscaladoPorSemana(observacao, index) {
+
+    const linha = document.getElementById("semana" + index);
+    const spans = linha.querySelectorAll("td span");
+
+    // Extrair os nomes de cada span
+    const nomes = Array.from(spans).map(s => s.textContent.trim());
+
+    // Encontrar duplicados
+    const duplicados = nomes.filter((nome, i) => nomes.indexOf(nome) !== i);
+
+    // Remover repetidos
+    const duplicadosUnicos = [...new Set(duplicados)];
 
 
+    duplicadosUnicos.forEach(nome => {
+        // Verifica se o nome já está na observação
+        if (!(nome in observacao)) {
+            observacao[nome] = {
+                cor: "gold",
+                observacao: "Escalado mais de uma vez nesta semana"
+            };
+
+            // Alterar cor no DOM
+            spans.forEach(s => {
+                if (s.textContent.trim() === nome) {
+                    s.style.color = "gold";
+                }
+            });
+        }
+    });
+}
+
+function exibirObservacoes(observacao) {
+    const localExibirEscala = document.getElementById("observacao");
+    localExibirEscala.innerHTML = '<h1 style="color: white;">Observações</h1>';
+    let index = 0;
+    for (let o in observacao) {
+        const id = `collapse${index}`
+        localExibirEscala.innerHTML += `<div class="accordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#${id}" aria-expanded="true" aria-controls="collapseOne" style="color: ${observacao[o].cor}">
+                        ${o}
+                    </button>
+                </h2>
+                <div id="${id}" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
+                    <div class="accordion-body">
+                        <h2>${observacao[o].observacao}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        index++;
+    }
 }
